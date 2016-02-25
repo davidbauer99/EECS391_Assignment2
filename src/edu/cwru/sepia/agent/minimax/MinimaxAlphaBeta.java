@@ -84,7 +84,11 @@ public class MinimaxAlphaBeta extends Agent {
     	 * List children = node.state.getChildren()
     	 * orderWithHeuristics
     	 * For child
-    	 * 	val = recursivecall
+    	 * 	val = recursivecall(child, depth - 1, alpha, beta).state.getUtility
+    	 *  if isMax && val > alpha
+    	 *		alpha = val
+    	 *	else if !isMax && val < beta
+    	 *		beta = val
     	 * 
     	 */
         return node;
