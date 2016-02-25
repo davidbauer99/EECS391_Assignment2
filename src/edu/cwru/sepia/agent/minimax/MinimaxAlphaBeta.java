@@ -89,6 +89,10 @@ public class MinimaxAlphaBeta extends Agent {
     	 *		alpha = val
     	 *	else if !isMax && val < beta
     	 *		beta = val
+    	 *	if isMax && val > beta
+    	 *		return val
+    	 *	else if !isMax and val < alpha
+    	 *		return val
     	 * 
     	 */
         return node;
