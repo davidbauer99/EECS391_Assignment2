@@ -1,32 +1,37 @@
 package edu.cwru.sepia.agent.minimax;
 
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
 import edu.cwru.sepia.action.Action;
 import edu.cwru.sepia.action.ActionType;
 import edu.cwru.sepia.action.DirectedAction;
 import edu.cwru.sepia.action.TargetedAction;
-import edu.cwru.sepia.environment.model.state.State;
 import edu.cwru.sepia.environment.model.state.ResourceNode.ResourceView;
+import edu.cwru.sepia.environment.model.state.State;
 import edu.cwru.sepia.environment.model.state.Unit.UnitView;
 import edu.cwru.sepia.environment.model.state.UnitTemplate.UnitTemplateView;
-import edu.cwru.sepia.model.GameUnitTest;
 import edu.cwru.sepia.util.Direction;
 
-import java.awt.Point;
-import java.awt.geom.Point2D;
-import java.util.*;
-import java.util.Map.Entry;
-
 /**
- * This class stores all of the information the agent
- * needs to know about the state of the game. For example this
- * might include things like footmen HP and positions.
+ * This class stores all of the information the agent needs to know about the
+ * state of the game. For example this might include things like footmen HP and
+ * positions.
  *
- * Add any information or methods you would like to this class,
- * but do not delete or change the signatures of the provided methods.
+ * Add any information or methods you would like to this class, but do not
+ * delete or change the signatures of the provided methods.
  */
 public class GameState {
-	
-	//Create a set of just N,S,E,W for iteration.
+
+	// Create a set of just N,S,E,W for iteration.
 	private static final Set<Direction> VALID_DIRECTIONS = new HashSet<Direction>();
 	{
 		VALID_DIRECTIONS.add(Direction.NORTH);
@@ -41,39 +46,42 @@ public class GameState {
 	private final List<UnitState> footmen;
 	private final List<UnitState> archers;
 	private final boolean isFootmanTurn;
-	
-    /**
-     * You will implement this constructor. It will
-     * extract all of the needed state information from the built in
-     * SEPIA state view.
-     *
-     * You may find the following state methods useful:
-     *
-     * state.getXExtent() and state.getYExtent(): get the map dimensions
-     * state.getAllResourceIDs(): returns all of the obstacles in the map
-     * state.getResourceNode(Integer resourceID): Return a ResourceView for the given ID
-     *
-     * For a given ResourceView you can query the position using
-     * resource.getXPosition() and resource.getYPosition()
-     *
-     * For a given unit you will need to find the attack damage, range and max HP
-     * unitView.getTemplateView().getRange(): This gives you the attack range
-     * unitView.getTemplateView().getBasicAttack(): The amount of damage this unit deals
-     * unitView.getTemplateView().getBaseHealth(): The maximum amount of health of this unit
-     *
-     * @param state Current state of the episode
-     */
-    public GameState(State.StateView state) {
-    	this.xExtent = state.getXExtent();
-    	this.yExtent = state.getYExtent();
-    	this.resources = state.getAllResourceNodes();
-    	this.footmen = createUnitStates(state.getUnits(0));
-    	this.archers = createUnitStates(state.getUnits(1));
-    	this.isFootmanTurn = true;
-    }
-    
-    public GameState(int xBound, int yBound, List<UnitState> foots,
-			List<UnitState> archs, List<ResourceView> resourceList, boolean isFootmanTurn) {
+
+	/**
+	 * You will implement this constructor. It will extract all of the needed
+	 * state information from the built in SEPIA state view.
+	 *
+	 * You may find the following state methods useful:
+	 *
+	 * state.getXExtent() and state.getYExtent(): get the map dimensions
+	 * state.getAllResourceIDs(): returns all of the obstacles in the map
+	 * state.getResourceNode(Integer resourceID): Return a ResourceView for the
+	 * given ID
+	 *
+	 * For a given ResourceView you can query the position using
+	 * resource.getXPosition() and resource.getYPosition()
+	 *
+	 * For a given unit you will need to find the attack damage, range and max
+	 * HP unitView.getTemplateView().getRange(): This gives you the attack range
+	 * unitView.getTemplateView().getBasicAttack(): The amount of damage this
+	 * unit deals unitView.getTemplateView().getBaseHealth(): The maximum amount
+	 * of health of this unit
+	 *
+	 * @param state
+	 *            Current state of the episode
+	 */
+	public GameState(State.StateView state) {
+		this.xExtent = state.getXExtent();
+		this.yExtent = state.getYExtent();
+		this.resources = state.getAllResourceNodes();
+		this.footmen = createUnitStates(state.getUnits(0));
+		this.archers = createUnitStates(state.getUnits(1));
+		this.isFootmanTurn = true;
+	}
+
+	public GameState(int xBound, int yBound, List<UnitState> foots,
+			List<UnitState> archs, List<ResourceView> resourceList,
+			boolean isFootmanTurn) {
 		this.xExtent = xBound;
 		this.yExtent = yBound;
 		this.footmen = foots;
@@ -83,86 +91,92 @@ public class GameState {
 	}
 
 	public boolean isTerminal() {
-    	return archers.isEmpty() || footmen.isEmpty();
-    }
+		return archers.isEmpty() || footmen.isEmpty();
+	}
 
-    private List<UnitState> createUnitStates(List<UnitView> units) {
+	private List<UnitState> createUnitStates(List<UnitView> units) {
 		List<UnitState> unitStates = new ArrayList<UnitState>();
 		for (UnitView view : units) {
 			UnitTemplateView unitTemplate = view.getTemplateView();
-			unitStates.add(new UnitState(view.getXPosition(),
-					view.getYPosition(), view.getHP(), 
-					unitTemplate.getBasicAttack() + unitTemplate.getPiercingAttack(),
+			unitStates.add(new UnitState(view.getXPosition(), view
+					.getYPosition(), view.getHP(), unitTemplate
+					.getBasicAttack() + unitTemplate.getPiercingAttack(),
 					unitTemplate.getRange(), view.getID()));
 		}
 		return unitStates;
 	}
 
 	/**
-     * You will implement this function.
-     *
-     * You should use weighted linear combination of features.
-     * The features may be primitives from the state (such as hp of a unit)
-     * or they may be higher level summaries of information from the state such
-     * as distance to a specific location. Come up with whatever features you think
-     * are useful and weight them appropriately.
-     *
-     * It is recommended that you start simple until you have your algorithm working. Then watch
-     * your agent play and try to add features that correct mistakes it makes. However, remember that
-     * your features should be as fast as possible to compute. If the features are slow then you will be
-     * able to do less plys in a turn.
-     *
-     * Add a good comment about what is in your utility and why you chose those features.
-     *
-     * @return The weighted linear combination of the features
-     */
-    public double getUtility() {
-    	// negative Distance to archers
-    	// positive footman health remaining
-    	// positive footmen alive (medium)
-    	// negative archer health remaining (high)
-    	// negative archer alive (super high)
-        return 0.0;
-    }
+	 * You will implement this function.
+	 *
+	 * You should use weighted linear combination of features. The features may
+	 * be primitives from the state (such as hp of a unit) or they may be higher
+	 * level summaries of information from the state such as distance to a
+	 * specific location. Come up with whatever features you think are useful
+	 * and weight them appropriately.
+	 *
+	 * It is recommended that you start simple until you have your algorithm
+	 * working. Then watch your agent play and try to add features that correct
+	 * mistakes it makes. However, remember that your features should be as fast
+	 * as possible to compute. If the features are slow then you will be able to
+	 * do less plys in a turn.
+	 *
+	 * Add a good comment about what is in your utility and why you chose those
+	 * features.
+	 *
+	 * @return The weighted linear combination of the features
+	 */
+	public double getUtility() {
+		// negative Distance to archers
+		// positive footman health remaining
+		// positive footmen alive (medium)
+		// negative archer health remaining (high)
+		// negative archer alive (super high)
+		return 0.0;
+	}
 
-    /**
-     * You will implement this function.
-     *
-     * This will return a list of GameStateChild objects. You will generate all of the possible
-     * actions in a step and then determine the resulting game state from that action. These are your GameStateChildren.
-     *
-     * You may find it useful to iterate over all the different directions in SEPIA.
-     *
-     * for(Direction direction : Directions.values())
-     *
-     * To get the resulting position from a move in that direction you can do the following
-     * x += direction.xComponent()
-     * y += direction.yComponent()
-     *
-     * @return All possible actions and their associated resulting game state
-     */
-    public List<GameStateChild> getChildren() {
-    	Map<Integer, List<Action>> actions = new HashMap<Integer, List<Action>>();
-    	if (isFootmanTurn) {
-    		for (UnitState footman : footmen) {
-    			List<Action> footmanActions = new ArrayList<Action>();
-    			footmanActions.addAll(moveActions(footman));
-    			footmanActions.addAll(attackActions(footman, archers, footman.getRange()));
-    			actions.put(footman.getId(), footmanActions);
-    		}
-    	} else {
-    		for (UnitState archer : archers) {
-    			List<Action> archerActions = new ArrayList<Action>();
-    			archerActions.addAll(moveActions(archer));
-    			archerActions.addAll(attackActions(archer, footmen, archer.getRange()));
-    			actions.put(archer.getId(), archerActions);
-    		}
-    	}
-    	List<GameStateChild> childrenStates = generateChildren(actions);
-        return childrenStates;
-    }
+	/**
+	 * You will implement this function.
+	 *
+	 * This will return a list of GameStateChild objects. You will generate all
+	 * of the possible actions in a step and then determine the resulting game
+	 * state from that action. These are your GameStateChildren.
+	 *
+	 * You may find it useful to iterate over all the different directions in
+	 * SEPIA.
+	 *
+	 * for(Direction direction : Directions.values())
+	 *
+	 * To get the resulting position from a move in that direction you can do
+	 * the following x += direction.xComponent() y += direction.yComponent()
+	 *
+	 * @return All possible actions and their associated resulting game state
+	 */
+	public List<GameStateChild> getChildren() {
+		Map<Integer, List<Action>> actions = new HashMap<Integer, List<Action>>();
+		if (isFootmanTurn) {
+			for (UnitState footman : footmen) {
+				List<Action> footmanActions = new ArrayList<Action>();
+				footmanActions.addAll(moveActions(footman));
+				footmanActions.addAll(attackActions(footman, archers,
+						footman.getRange()));
+				actions.put(footman.getId(), footmanActions);
+			}
+		} else {
+			for (UnitState archer : archers) {
+				List<Action> archerActions = new ArrayList<Action>();
+				archerActions.addAll(moveActions(archer));
+				archerActions.addAll(attackActions(archer, footmen,
+						archer.getRange()));
+				actions.put(archer.getId(), archerActions);
+			}
+		}
+		List<GameStateChild> childrenStates = generateChildren(actions);
+		return childrenStates;
+	}
 
-	private List<GameStateChild> generateChildren(Map<Integer, List<Action>> actions) {
+	private List<GameStateChild> generateChildren(
+			Map<Integer, List<Action>> actions) {
 		List<Map<Integer, Action>> actionPairings = getCrossProductOfActions(actions);
 		List<GameStateChild> children = new ArrayList<GameStateChild>();
 		for (Map<Integer, Action> actionPair : actionPairings) {
@@ -178,23 +192,23 @@ public class GameState {
 		List<ResourceView> resourceList = gameState.resources;
 		List<UnitState> foots = new ArrayList<UnitState>();
 		for (UnitState unit : gameState.footmen) {
-			foots.add(new UnitState(unit.getXPos(),
-					unit.getYPos(), unit.getHealth(),
-					unit.getDamage(), unit.getRange(), unit.getId()));
+			foots.add(new UnitState(unit.getXPos(), unit.getYPos(), unit
+					.getHealth(), unit.getDamage(), unit.getRange(), unit
+					.getId()));
 		}
 		List<UnitState> archs = new ArrayList<UnitState>();
 		for (UnitState unit : gameState.archers) {
-			archs.add(new UnitState(unit.getXPos(),
-					unit.getYPos(), unit.getHealth(),
-					unit.getDamage(), unit.getRange(), unit.getId()));
+			archs.add(new UnitState(unit.getXPos(), unit.getYPos(), unit
+					.getHealth(), unit.getDamage(), unit.getRange(), unit
+					.getId()));
 		}
 		if (gameState.isFootmanTurn) {
 			applyActions(foots, archs, actions);
 		} else {
 			applyActions(archs, foots, actions);
 		}
-		GameState newState = new GameState(xBound, yBound, foots,
-				archs, resourceList, !gameState.isFootmanTurn);
+		GameState newState = new GameState(xBound, yBound, foots, archs,
+				resourceList, !gameState.isFootmanTurn);
 		return new GameStateChild(actions, newState);
 	}
 
@@ -204,8 +218,10 @@ public class GameState {
 			if (action.getType() == ActionType.PRIMITIVEMOVE) {
 				UnitState unit = unitByID(units, action.getUnitId());
 				DirectedAction dirAction = (DirectedAction) action;
-				unit.setXPos(unit.getXPos() + dirAction.getDirection().xComponent());
-				unit.setYPos(unit.getYPos() + dirAction.getDirection().yComponent());
+				unit.setXPos(unit.getXPos()
+						+ dirAction.getDirection().xComponent());
+				unit.setYPos(unit.getYPos()
+						+ dirAction.getDirection().yComponent());
 			} else {
 				TargetedAction targAction = (TargetedAction) action;
 				UnitState unit = unitByID(units, targAction.getUnitId());
@@ -226,18 +242,20 @@ public class GameState {
 
 	private List<Map<Integer, Action>> getCrossProductOfActions(
 			Map<Integer, List<Action>> actions) {
-		Iterator<Entry<Integer, List<Action>>> actionEntries = actions.entrySet().iterator();
-		
-		List<Map<Integer, Action>> actionPairings = new ArrayList<Map<Integer,Action>>();
+		Iterator<Entry<Integer, List<Action>>> actionEntries = actions
+				.entrySet().iterator();
+
+		List<Map<Integer, Action>> actionPairings = new ArrayList<Map<Integer, Action>>();
 		actionPairings.addAll(firstUnitsActions(actionEntries.next()));
 		List<Map<Integer, Action>> existingPairings = actionPairings;
-		
+
 		Entry<Integer, List<Action>> nextActions = actionEntries.next();
 		while (nextActions != null) {
 			actionPairings = new ArrayList<Map<Integer, Action>>();
 			for (Map<Integer, Action> actionMap : existingPairings) {
 				for (Action nextAction : nextActions.getValue()) {
-					Map<Integer, Action> newActionMap = new HashMap<Integer, Action>(actionMap);
+					Map<Integer, Action> newActionMap = new HashMap<Integer, Action>(
+							actionMap);
 					newActionMap.put(nextActions.getKey(), nextAction);
 					actionPairings.add(newActionMap);
 				}
@@ -249,7 +267,7 @@ public class GameState {
 
 	private Collection<? extends Map<Integer, Action>> firstUnitsActions(
 			Entry<Integer, List<Action>> actionEntry) {
-		List<Map<Integer, Action>> actionList = new ArrayList<Map<Integer,Action>>();
+		List<Map<Integer, Action>> actionList = new ArrayList<Map<Integer, Action>>();
 		for (Action action : actionEntry.getValue()) {
 			Map<Integer, Action> actionMap = new HashMap<Integer, Action>();
 			actionMap.put(actionEntry.getKey(), action);
@@ -258,11 +276,13 @@ public class GameState {
 		return actionList;
 	}
 
-	private List<Action> attackActions(UnitState unit, List<UnitState> targets, int range) {
+	private List<Action> attackActions(UnitState unit, List<UnitState> targets,
+			int range) {
 		List<Action> attacks = new ArrayList<Action>();
 		for (UnitState target : targets) {
 			if (distance(unit, target) <= range) {
-				attacks.add(Action.createPrimitiveAttack(unit.getId(), target.getId()));
+				attacks.add(Action.createPrimitiveAttack(unit.getId(),
+						target.getId()));
 			}
 		}
 		return attacks;

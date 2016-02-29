@@ -8,8 +8,9 @@ public class UnitState {
 	private int damage;
 	private int range;
 	private int id;
-	
-	public UnitState(int xPos, int yPos, int health, int damage, int range, int id) {
+
+	public UnitState(int xPos, int yPos, int health, int damage, int range,
+			int id) {
 		super();
 		this.xPos = xPos;
 		this.yPos = yPos;
@@ -66,5 +67,5 @@ public class UnitState {
 	public void setRange(int range) {
 		this.range = range;
 	}
-	
+
 }
