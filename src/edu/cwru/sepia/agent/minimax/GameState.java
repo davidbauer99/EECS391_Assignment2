@@ -132,6 +132,10 @@ public class GameState {
 	 * @return The weighted linear combination of the features
 	 */
 	public double getUtility() {
+		if (isTerminal()) {
+			return footmen.isEmpty() ? Integer.MAX_VALUE : Integer.MIN_VALUE;
+		}
+
 		int totalUtility = 0;
 		// negative Distance to archers
 		int distanceToArchers = 0;
@@ -162,8 +166,15 @@ public class GameState {
 	}
 
 	private int distToClosestEnemy(UnitState footman, List<UnitState> archs) {
-		// TODO Auto-generated method stub
-		return 0;
+		int min = Integer.MAX_VALUE;
+		Point2D footmanLoc = new Point2D.Double(footman.getXPos(),
+				footman.getYPos());
+		for (UnitState archer : archs) {
+			Point2D archerLoc = new Point2D.Double(archer.getXPos(),
+					archer.getYPos());
+			min = (int) Math.min(min, Math.abs(footmanLoc.distance(archerLoc)));
+		}
+		return min;
 	}
 
 	/**
