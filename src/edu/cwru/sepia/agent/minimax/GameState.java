@@ -31,6 +31,11 @@ import edu.cwru.sepia.util.Direction;
  */
 public class GameState {
 
+	private static final int DISTANCE_WEIGHT = -1;
+	private static final int FOOTMAN_HP_WEIGHT = 2;
+	private static final int FOOTMAN_WIEGHT = 20;
+	private static final int ARCHER_HP_WEIGHT = -5;
+	private static final int ARCHER_WEIGHT = -50;
 	// Create a set of just N,S,E,W for iteration.
 	private static final Set<Direction> VALID_DIRECTIONS = new HashSet<Direction>();
 	{
@@ -127,12 +132,38 @@ public class GameState {
 	 * @return The weighted linear combination of the features
 	 */
 	public double getUtility() {
+		int totalUtility = 0;
 		// negative Distance to archers
+		int distanceToArchers = 0;
+		for (UnitState footman : footmen) {
+			distanceToArchers += DISTANCE_WEIGHT
+					* distToClosestEnemy(footman, archers);
+		}
+		totalUtility += distanceToArchers;
 		// positive footman health remaining
+		int footmanHealth = 0;
+		for (UnitState footman : footmen) {
+			footmanHealth += footman.getHealth() * FOOTMAN_HP_WEIGHT;
+		}
+		totalUtility += footmanHealth;
 		// positive footmen alive (medium)
+		int footmenAlive = FOOTMAN_WIEGHT * footmen.size();
+		totalUtility += footmenAlive;
 		// negative archer health remaining (high)
-		// negative archer alive (super high)
-		return 0.0;
+		int archerHealth = 0;
+		for (UnitState archer : archers) {
+			archerHealth = archer.getHealth() * ARCHER_HP_WEIGHT;
+		}
+		totalUtility += archerHealth;
+		// negative archer alive (high)
+		int archersAlive = ARCHER_WEIGHT * archers.size();
+		totalUtility += archersAlive;
+		return totalUtility;
+	}
+
+	private int distToClosestEnemy(UnitState footman, List<UnitState> archs) {
+		// TODO Auto-generated method stub
+		return 0;
 	}
 
 	/**
