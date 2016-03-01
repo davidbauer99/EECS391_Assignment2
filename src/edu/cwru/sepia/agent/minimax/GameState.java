@@ -291,8 +291,9 @@ public class GameState {
 		actionPairings.addAll(firstUnitsActions(actionEntries.next()));
 		List<Map<Integer, Action>> existingPairings = actionPairings;
 
-		Entry<Integer, List<Action>> nextActions = actionEntries.next();
-		while (nextActions != null) {
+		Entry<Integer, List<Action>> nextActions;
+		while (actionEntries.hasNext()) {
+			nextActions = actionEntries.next();
 			actionPairings = new ArrayList<Map<Integer, Action>>();
 			for (Map<Integer, Action> actionMap : existingPairings) {
 				for (Action nextAction : nextActions.getValue()) {
