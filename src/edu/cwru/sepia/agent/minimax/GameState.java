@@ -323,7 +323,7 @@ public class GameState {
 			int range) {
 		List<Action> attacks = new ArrayList<Action>();
 		for (UnitState target : targets) {
-			if (distance(unit, target) <= range) {
+			if (targetDistance(unit, target) <= range) {
 				attacks.add(Action.createPrimitiveAttack(unit.getId(),
 						target.getId()));
 			}
@@ -331,10 +331,10 @@ public class GameState {
 		return attacks;
 	}
 
-	private double distance(UnitState unitA, UnitState unitB) {
-		Point2D pointA = new Point2D.Double(unitA.getXPos(), unitA.getYPos());
-		Point2D pointB = new Point2D.Double(unitB.getXPos(), unitB.getYPos());
-		return Math.abs(pointA.distance(pointB));
+	private double targetDistance(UnitState unitA, UnitState unitB) {
+		int xDiff = Math.abs(unitA.getXPos() - unitB.getXPos());
+		int yDiff = Math.abs(unitA.getYPos() - unitB.getYPos());
+		return Math.max(xDiff, yDiff);
 	}
 
 	private List<Action> moveActions(UnitState unit) {
@@ -353,6 +353,14 @@ public class GameState {
 	}
 
 	private boolean isValidSpace(int newX, int newY) {
-		return 0 <= newX && 0 <= newY && newX < xExtent && newY < yExtent;
+		boolean inBounds = 0 <= newX && 0 <= newY && newX < xExtent
+				&& newY < yExtent;
+		for (ResourceView resource : resources) {
+			if (resource.getXPosition() == newX
+					&& resource.getYPosition() == newY) {
+				return false;
+			}
+		}
+		return inBounds;
 	}
 }
