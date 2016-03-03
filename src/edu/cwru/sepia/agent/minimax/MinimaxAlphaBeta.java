@@ -74,6 +74,11 @@ public class MinimaxAlphaBeta extends Agent {
      */
     public GameStateChild alphaBetaSearch(GameStateChild node, int depth, double alpha, double beta)
     {	
+    	List<GameStateChild> children = node.state.getChildren();
+    	for (GameStateChild child : children) {
+    		System.out.println(child.action);
+    		System.out.println(child.state.getUtility());
+    	}
     	/*Alpha Beta psuedocode
     	 * If depth == 0 || node.state.isTerminal
     	 * 	return node

@@ -10,11 +10,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.Stack;
 
 import edu.cwru.sepia.action.Action;
 import edu.cwru.sepia.action.ActionType;
 import edu.cwru.sepia.action.DirectedAction;
 import edu.cwru.sepia.action.TargetedAction;
+import edu.cwru.sepia.agent.minimax.AStarHelper.MapLocation;
 import edu.cwru.sepia.environment.model.state.ResourceNode.ResourceView;
 import edu.cwru.sepia.environment.model.state.State;
 import edu.cwru.sepia.environment.model.state.Unit.UnitView;
@@ -32,10 +34,11 @@ import edu.cwru.sepia.util.Direction;
 public class GameState {
 
 	private static final int DISTANCE_WEIGHT = -1;
-	private static final int FOOTMAN_HP_WEIGHT = 2;
+	private static final int FOOTMAN_HP_WEIGHT = 4;
 	private static final int FOOTMAN_WIEGHT = 20;
-	private static final int ARCHER_HP_WEIGHT = -5;
+	private static final int ARCHER_HP_WEIGHT = -10;
 	private static final int ARCHER_WEIGHT = -50;
+	private static final int A_STAR_PATH_BONUS = 15;
 	// Create a set of just N,S,E,W for iteration.
 	private static final Set<Direction> VALID_DIRECTIONS = new HashSet<Direction>();
 	{
@@ -44,6 +47,7 @@ public class GameState {
 		VALID_DIRECTIONS.add(Direction.EAST);
 		VALID_DIRECTIONS.add(Direction.SOUTH);
 	}
+	private static final AStarHelper aStarHelper = new AStarHelper();
 
 	private final int xExtent;
 	private final int yExtent;
@@ -51,6 +55,7 @@ public class GameState {
 	private final List<UnitState> footmen;
 	private final List<UnitState> archers;
 	private final boolean isFootmanTurn;
+	private final Map<Integer, Stack<MapLocation>> aStarResult;
 
 	/**
 	 * You will implement this constructor. It will extract all of the needed
@@ -82,17 +87,19 @@ public class GameState {
 		this.footmen = createUnitStates(state.getUnits(0));
 		this.archers = createUnitStates(state.getUnits(1));
 		this.isFootmanTurn = true;
+		this.aStarResult = null;
 	}
 
 	public GameState(int xBound, int yBound, List<UnitState> foots,
 			List<UnitState> archs, List<ResourceView> resourceList,
-			boolean isFootmanTurn) {
+			boolean isFootmanTurn, Map<Integer, Stack<MapLocation>> aStarResult) {
 		this.xExtent = xBound;
 		this.yExtent = yBound;
 		this.footmen = foots;
 		this.archers = archs;
 		this.resources = resourceList;
 		this.isFootmanTurn = isFootmanTurn;
+		this.aStarResult = aStarResult;
 	}
 
 	public boolean isTerminal() {
@@ -162,9 +169,29 @@ public class GameState {
 		// negative archer alive (high)
 		int archersAlive = ARCHER_WEIGHT * archers.size();
 		totalUtility += archersAlive;
+		// If this state corresponds to a move on the best path, add a bonus
+		int bonusPathUtility = 0;
+		// !footmanturn indicating that they just moved
+		if (!isFootmanTurn && aStarResult != null) {
+			System.out.println("Checking astar");
+			for (UnitState footman : footmen) {
+				Stack<MapLocation> aStarPath = aStarResult.get(footman.getId());
+				if (aStarPath != null) {
+					MapLocation loc = aStarPath.peek();
+					if (loc.x == footman.getXPos()
+							&& loc.y == footman.getYPos()) {
+						System.out.println("Adding bonus");
+						bonusPathUtility += A_STAR_PATH_BONUS;
+					}
+				}
+			}
+		}
+		totalUtility += bonusPathUtility;
 		return totalUtility;
 	}
 
+	// Finds the distance to the closest enemy, encouraging a footman to move
+	// towards units they are already close to.
 	private int distToClosestEnemy(UnitState footman, List<UnitState> archs) {
 		int min = Integer.MAX_VALUE;
 		Point2D footmanLoc = new Point2D.Double(footman.getXPos(),
@@ -199,7 +226,9 @@ public class GameState {
 		if (isFootmanTurn) {
 			for (UnitState footman : footmen) {
 				List<Action> footmanActions = new ArrayList<Action>();
+				// Add move actions
 				footmanActions.addAll(moveActions(footman));
+				// Add attack options
 				footmanActions.addAll(attackActions(footman, archers,
 						footman.getRange()));
 				actions.put(footman.getId(), footmanActions);
@@ -207,7 +236,9 @@ public class GameState {
 		} else {
 			for (UnitState archer : archers) {
 				List<Action> archerActions = new ArrayList<Action>();
+				// Add move actions
 				archerActions.addAll(moveActions(archer));
+				// Add attack actions
 				archerActions.addAll(attackActions(archer, footmen,
 						archer.getRange()));
 				actions.put(archer.getId(), archerActions);
@@ -217,46 +248,84 @@ public class GameState {
 		return childrenStates;
 	}
 
+	// Takes a map of unitID to a List of actions that unit can take and creates
+	// all possible
+	// children states
 	private List<GameStateChild> generateChildren(
 			Map<Integer, List<Action>> actions) {
+		// Get the possible pairs of actions
 		List<Map<Integer, Action>> actionPairings = getCrossProductOfActions(actions);
 		List<GameStateChild> children = new ArrayList<GameStateChild>();
+		// If it is the footmans turn compute A* so that optimal moves can be
+		// weighted higher
+		Map<Integer, Stack<MapLocation>> aStarResult = new HashMap<Integer, Stack<MapLocation>>();
+		if (isFootmanTurn) {
+			for (UnitState footman : footmen) {
+				UnitState closestTarget = null;
+				double dist = Integer.MAX_VALUE;
+				// A* to closest enemy
+				for (UnitState archer : archers) {
+					if (distance(footman, archer) < dist) {
+						closestTarget = archer;
+					}
+				}
+				aStarResult.put(footman.getId(), aStarHelper.aStarSearch(
+						footman, closestTarget, xExtent, yExtent, resources));
+			}
+		}
+		// Create the children
 		for (Map<Integer, Action> actionPair : actionPairings) {
-			children.add(childState(this, actionPair));
+			children.add(childState(this, actionPair, aStarResult));
 		}
 		return children;
 	}
 
+	private double distance(UnitState footman, UnitState archer) {
+		Point2D footPoint = new Point2D.Double(footman.getXPos(),
+				footman.getYPos());
+		Point2D archPoint = new Point2D.Double(archer.getXPos(),
+				archer.getYPos());
+		return Math.abs(footPoint.distance(archPoint));
+	}
+
 	private GameStateChild childState(GameState gameState,
-			Map<Integer, Action> actions) {
+			Map<Integer, Action> actions,
+			Map<Integer, Stack<MapLocation>> aStarResult) {
+		// Copies bounds and resources
 		int xBound = gameState.xExtent;
 		int yBound = gameState.yExtent;
 		List<ResourceView> resourceList = gameState.resources;
+		// Create new footmen
 		List<UnitState> foots = new ArrayList<UnitState>();
 		for (UnitState unit : gameState.footmen) {
 			foots.add(new UnitState(unit.getXPos(), unit.getYPos(), unit
 					.getHealth(), unit.getDamage(), unit.getRange(), unit
 					.getId()));
 		}
+		// Create new archers
 		List<UnitState> archs = new ArrayList<UnitState>();
 		for (UnitState unit : gameState.archers) {
 			archs.add(new UnitState(unit.getXPos(), unit.getYPos(), unit
 					.getHealth(), unit.getDamage(), unit.getRange(), unit
 					.getId()));
 		}
+		// Apply moves and attacks
 		if (gameState.isFootmanTurn) {
 			applyActions(foots, archs, actions);
 		} else {
 			applyActions(archs, foots, actions);
 		}
+		// create a new games state
 		GameState newState = new GameState(xBound, yBound, foots, archs,
-				resourceList, !gameState.isFootmanTurn);
+				resourceList, !gameState.isFootmanTurn, aStarResult);
+		// Return a new GameStateChild
 		return new GameStateChild(actions, newState);
 	}
 
 	private void applyActions(List<UnitState> units, List<UnitState> targets,
 			Map<Integer, Action> actions) {
 		for (Action action : actions.values()) {
+			// If it is a move, move the footman
 			if (action.getType() == ActionType.PRIMITIVEMOVE) {
 				UnitState unit = unitByID(units, action.getUnitId());
 				DirectedAction dirAction = (DirectedAction) action;
@@ -265,6 +334,7 @@ public class GameState {
 				unit.setYPos(unit.getYPos()
 						+ dirAction.getDirection().yComponent());
 			} else {
+				// Change target health
 				TargetedAction targAction = (TargetedAction) action;
 				UnitState unit = unitByID(units, targAction.getUnitId());
 				UnitState target = unitByID(targets, targAction.getTargetId());
@@ -282,15 +352,20 @@ public class GameState {
 		return null;
 	}
 
+	// Creates a List of maps that will contain every possible combination of
+	// actions from the input. Will work for an arbitrary number of units.
 	private List<Map<Integer, Action>> getCrossProductOfActions(
 			Map<Integer, List<Action>> actions) {
 		Iterator<Entry<Integer, List<Action>>> actionEntries = actions
 				.entrySet().iterator();
 
 		List<Map<Integer, Action>> actionPairings = new ArrayList<Map<Integer, Action>>();
+		// Add the actions of the first unit
 		actionPairings.addAll(firstUnitsActions(actionEntries.next()));
 		List<Map<Integer, Action>> existingPairings = actionPairings;
 
+		// For all subsequent units, add their actions each of the existing
+		// actions
 		Entry<Integer, List<Action>> nextActions;
 		while (actionEntries.hasNext()) {
 			nextActions = actionEntries.next();
@@ -319,6 +394,7 @@ public class GameState {
 		return actionList;
 	}
 
+	// Creates attack actions for all targets that are in range
 	private List<Action> attackActions(UnitState unit, List<UnitState> targets,
 			int range) {
 		List<Action> attacks = new ArrayList<Action>();
@@ -331,12 +407,29 @@ public class GameState {
 		return attacks;
 	}
 
+	/**
+	 * Returns the distance from one unit to another as it would be calculated
+	 * in a range check.
+	 *
+	 * @param unitA
+	 *            the first unit.
+	 * @param unitB
+	 *            the second unit.
+	 * @return an int representing the distance.
+	 */
 	private double targetDistance(UnitState unitA, UnitState unitB) {
 		int xDiff = Math.abs(unitA.getXPos() - unitB.getXPos());
 		int yDiff = Math.abs(unitA.getYPos() - unitB.getYPos());
 		return Math.max(xDiff, yDiff);
 	}
 
+	/**
+	 * Generates all valid move actions for the given unit.
+	 *
+	 * @param unit
+	 *            the unit that will be moving.
+	 * @return a List containing all actions corresponding to a valid move.
+	 */
 	private List<Action> moveActions(UnitState unit) {
 		List<Action> moveActions = new ArrayList<Action>();
 		int x = unit.getXPos();
@@ -352,6 +445,15 @@ public class GameState {
 		return moveActions;
 	}
 
+	/**
+	 * Returns true if the space is valid.
+	 *
+	 * @param newX
+	 *            the x position the unit will be moving to.
+	 * @param newY
+	 *            the y position the unit will be moving to.
+	 * @return true if the space is valid, false otherwise.
+	 */
 	private boolean isValidSpace(int newX, int newY) {
 		boolean inBounds = 0 <= newX && 0 <= newY && newX < xExtent
 				&& newY < yExtent;
